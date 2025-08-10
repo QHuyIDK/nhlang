@@ -1,25 +1,28 @@
-set name "Huy"
+# Tutorial biến và kiểu dữ liệu trong NH ngôn ngữ của Huy
+
+# Biến số nguyên
 set age 20
-set score 95
-set city "Hà Nội"
+print "Tuổi:" age
 
-print "Tên:"
-print name
-print "Tuổi:"
-print age
-print "Điểm:"
-print score
-print "Thành phố:"
-print city
+# Biến chuỗi
+set name "Huy"
+print "Tên:" name
 
+# Biến số âm
+set delta -5
+print "Delta:" delta
+
+# Gán lại biến
+set age 25
+print "Tuổi mới:" age
+
+# Nhập dữ liệu vào biến số hoặc chuỗi
 input input_name
 input input_age
+print "Tên vừa nhập:" input_name
+print "Tuổi vừa nhập:" input_age
 
-print "Bạn vừa nhập tên:"
-print input_name
-print "Bạn vừa nhập tuổi:"
-print input_age
-
+# So sánh số với if
 if input_age > 18
     print "Bạn đã đủ tuổi trưởng thành"
 end
@@ -32,13 +35,15 @@ if input_age < 18
     print "Bạn chưa đủ tuổi trưởng thành"
 end
 
+# Vòng lặp lặp lại
 loop 3
     print "Lặp lại 3 lần"
 end
 
+# So sánh biến số với số
 if age >= 18
-    print name
-    print "đủ tuổi để đi bầu cử"
+    print name "đủ tuổi để đi bầu cử"
 end
 
-print "Test NH ngôn ngữ xong rồi, cố lên nhé!"
+# Kết thúc tutorial
+print "Tutorial biến và kiểu dữ liệu của NH xong rồi nhé!"
