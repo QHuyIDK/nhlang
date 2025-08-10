@@ -7,7 +7,7 @@ Hỗ trợ biến số, biến chuỗi, input, if, loop, print, so sánh cơ b�
 ## Cú pháp cơ bản
 
 ### 1. Biến và gán giá trị
-```nh
+
 set ten_bien gia_tri
 
 gia_tri có thể là số nguyên hoặc chuỗi (chuỗi đặt trong dấu " ").
@@ -17,6 +17,7 @@ Ví dụ:
 
 set name "Huy"
 set age 20
+
 
 2. In ra màn hình
 
