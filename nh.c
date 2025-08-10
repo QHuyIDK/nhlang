@@ -37,10 +37,14 @@ void set_var(const char* name, const char* val) {
         strcpy(v->name, name);
     }
     int is_num = 1;
-    for (int i = 0; val[i]; i++) {
-        if (!isdigit(val[i]) && !(i==0 && val[i]=='-')) {
-            is_num = 0;
-            break;
+    int len = strlen(val);
+    if (len == 0) is_num = 0;
+    else {
+        for (int i = 0; i < len; i++) {
+            if (!isdigit(val[i]) && !(i==0 && val[i]=='-')) {
+                is_num = 0;
+                break;
+            }
         }
     }
     if (is_num) {
@@ -59,13 +63,11 @@ Variable* get_var(const char* name) {
     return find_var(name);
 }
 
-// Bỏ space đầu dòng
 char* trim_leading_spaces(char* line) {
     while (*line == ' ' || *line == '\t') line++;
     return line;
 }
 
-// Tách token, xử lý chuỗi trong ""
 char* next_token(char** line_ptr) {
     char* p = *line_ptr;
     while (*p && isspace(*p)) p++;
@@ -90,6 +92,146 @@ char* next_token(char** line_ptr) {
 
     *line_ptr = p;
     return strdup(token);
+}
+
+// Kiểm tra chuỗi là số nguyên
+int is_integer(const char* s) {
+    if (!s || *s == 0) return 0;
+    int i = 0;
+    if (s[0] == '-') i = 1;
+    for (; s[i]; i++) {
+        if (!isdigit(s[i])) return 0;
+    }
+    return 1;
+}
+
+// Tách tokens cho print, xử lý dấu + và chuỗi ""
+char** split_print_expression(char* expr, int* count) {
+    char** tokens = malloc(sizeof(char*) * 100);
+    *count = 0;
+
+    char* p = expr;
+    while (*p) {
+        while (*p && isspace(*p)) p++;
+        if (!*p) break;
+
+        if (*p == '"') {
+            p++;
+            char buf[256];
+            int i=0;
+            while (*p && *p != '"' && i<255) {
+                buf[i++] = *p++;
+            }
+            buf[i] = 0;
+            if (*p == '"') p++;
+            tokens[(*count)++] = strdup(buf);
+        } else if (*p == '+') {
+            tokens[(*count)++] = strdup("+");
+            p++;
+        } else {
+            char buf[256];
+            int i=0;
+            while (*p && !isspace(*p) && *p != '+') {
+                buf[i++] = *p++;
+            }
+            buf[i] = 0;
+            tokens[(*count)++] = strdup(buf);
+        }
+    }
+    return tokens;
+}
+
+void free_tokens(char** tokens, int count) {
+    for (int i=0; i<count; i++) free(tokens[i]);
+    free(tokens);
+}
+
+// Nối chuỗi hoặc cộng số
+// Trả về 1 nếu thành công, 0 nếu lỗi kiểu dữ liệu
+int eval_print_tokens(char** tokens, int count) {
+    int expect_operand = 1; // true khi chờ toán hạng
+    VarType cur_type = TYPE_INT; // lưu kiểu hiện tại (để check kiểu hợp lệ)
+    int int_result = 0;
+    char str_result[4096] = "";
+    int have_result = 0;
+
+    for (int i=0; i<count; i++) {
+        char* t = tokens[i];
+
+        if (expect_operand) {
+            if (strcmp(t, "+") == 0) {
+                printf("Syntax error: '+' unexpected\n");
+                return 0;
+            }
+            // Lấy giá trị toán hạng
+            Variable* v = get_var(t);
+            if (v) {
+                if (!have_result) {
+                    cur_type = v->type;
+                    if (cur_type == TYPE_INT) int_result = v->int_val;
+                    else strcpy(str_result, v->str_val);
+                    have_result = 1;
+                } else {
+                    if (cur_type != v->type) {
+                        printf("Type error: mixing int and string\n");
+                        return 0;
+                    }
+                    if (cur_type == TYPE_INT) int_result += v->int_val;
+                    else {
+                        strcat(str_result, v->str_val);
+                    }
+                }
+            } else {
+                // Là literal
+                if (is_integer(t)) {
+                    int val = atoi(t);
+                    if (!have_result) {
+                        cur_type = TYPE_INT;
+                        int_result = val;
+                        have_result = 1;
+                    } else {
+                        if (cur_type != TYPE_INT) {
+                            printf("Type error: mixing int and string\n");
+                            return 0;
+                        }
+                        int_result += val;
+                    }
+                } else {
+                    // Chuỗi literal
+                    if (!have_result) {
+                        cur_type = TYPE_STR;
+                        strcpy(str_result, t);
+                        have_result = 1;
+                    } else {
+                        if (cur_type != TYPE_STR) {
+                            printf("Type error: mixing int and string\n");
+                            return 0;
+                        }
+                        strcat(str_result, t);
+                    }
+                }
+            }
+            expect_operand = 0;
+        } else {
+            if (strcmp(t, "+") != 0) {
+                printf("Syntax error: expected '+' but got '%s'\n", t);
+                return 0;
+            }
+            expect_operand = 1;
+        }
+    }
+    if (expect_operand) {
+        printf("Syntax error: expression ends with '+'\n");
+        return 0;
+    }
+    if (!have_result) return 0;
+
+    if (cur_type == TYPE_INT) {
+        printf("%d\n", int_result);
+    } else {
+        printf("%s\n", str_result);
+    }
+    return 1;
 }
 
 int compare_int(int a, const char* op, int b) {
@@ -145,18 +287,14 @@ void run_lines(char lines[][MAX_LINE], int start, int end) {
             free(val);
         } else if (strncmp(line, "print ", 6) == 0) {
             char *p = line + 6;
-            char* token;
-            while ((token = next_token(&p)) != NULL) {
-                Variable* v = get_var(token);
-                if (v) {
-                    if (v->type == TYPE_INT) printf("%d ", v->int_val);
-                    else printf("%s ", v->str_val);
-                } else {
-                    printf("%s ", token);
-                }
-                free(token);
+            int count;
+            char** tokens = split_print_expression(p, &count);
+            if (!eval_print_tokens(tokens, count)) {
+                printf("Error evaluating print expression\n");
+                free_tokens(tokens, count);
+                exit(1);
             }
-            printf("\n");
+            free_tokens(tokens, count);
         } else if (strncmp(line, "input ", 6) == 0) {
             char *p = line + 6;
             char* var = next_token(&p);
@@ -165,10 +303,15 @@ void run_lines(char lines[][MAX_LINE], int start, int end) {
                 exit(1);
             }
             printf("Input %s: ", var);
-            char buffer[128];
-            if (fgets(buffer, 128, stdin) == NULL) buffer[0] = 0;
-            buffer[strcspn(buffer, "\n")] = 0;
-            set_var(var, buffer);
+            char input_buf[128];
+            if (!fgets(input_buf, sizeof(input_buf), stdin)) {
+                printf("Input error\n");
+                free(var);
+                exit(1);
+            }
+            // Xóa newline cuối
+            input_buf[strcspn(input_buf, "\n")] = 0;
+            set_var(var, input_buf);
             free(var);
         } else if (strncmp(line, "if ", 3) == 0) {
             char *p = line + 3;
@@ -179,230 +322,58 @@ void run_lines(char lines[][MAX_LINE], int start, int end) {
                 printf("Syntax error in if\n");
                 exit(1);
             }
-            int cond = eval_condition(var, op, val);
+            // Tìm dòng end tương ứng
+            int j = i + 1;
+            int nested = 0;
+            for (; j < end; j++) {
+                char *l = trim_leading_spaces(lines[j]);
+                if (strncmp(l, "if ", 3) == 0) nested++;
+                else if (strcmp(l, "end") == 0) {
+                    if (nested == 0) break;
+                    nested--;
+                }
+            }
+            if (j == end) {
+                printf("Missing end for if\n");
+                exit(1);
+            }
+            if (eval_condition(var, op, val)) {
+                run_lines(lines, i+1, j);
+            }
+            i = j; // nhảy qua end
             free(var);
             free(op);
             free(val);
-
-            int j = i + 1;
-            while (j < end && strcmp(trim_leading_spaces(lines[j]), "end") != 0) j++;
-            if (j >= end) {
-                printf("Missing end\n");
-                exit(1);
-            }
-            if (cond) {
-                run_lines(lines, i + 1, j);
-            }
-            i = j;
         } else if (strncmp(line, "loop ", 5) == 0) {
             char *p = line + 5;
             char* times_str = next_token(&p);
-            if (!times_str) {
+            if (!times_str || !is_integer(times_str)) {
                 printf("Syntax error in loop\n");
                 exit(1);
             }
             int times = atoi(times_str);
             free(times_str);
+            // Tìm end tương ứng
             int j = i + 1;
-            while (j < end && strcmp(trim_leading_spaces(lines[j]), "end") != 0) j++;
-            if (j >= end) {
-                printf("Missing end\n");
+            int nested = 0;
+            for (; j < end; j++) {
+                char *l = trim_leading_spaces(lines[j]);
+                if (strncmp(l, "loop ", 5) == 0) nested++;
+                else if (strcmp(l, "end") == 0) {
+                    if (nested == 0) break;
+                    nested--;
+                }
+            }
+            if (j == end) {
+                printf("Missing end for loop\n");
                 exit(1);
             }
-            run_loop(lines, i + 1, j, times);
-            i = j;
+            run_loop(lines, i+1, j, times);
+            i = j; // nhảy qua end
         } else if (strcmp(line, "end") == 0) {
+            // end xử lý bởi if, loop nên bỏ qua ở đây
             continue;
         } else {
-            printf("Unknown command: %s\n", line_raw);
-        }
-    }
-}
-
-int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        printf("Usage: nh <file.nh>\n");
-        return 1;
-    }
-    FILE* f = fopen(argv[1], "r");
-    if (!f) {
-        printf("Cannot open file: %s\n", argv[1]);
-        return 1;
-    }
-    char lines[MAX_LINES][MAX_LINE];
-    int line_count = 0;
-    while (fgets(lines[line_count], MAX_LINE, f)) {
-        lines[line_count][strcspn(lines[line_count], "\n")] = 0;
-        line_count++;
-        if (line_count >= MAX_LINES) break;
-    }
-    fclose(f);
-    run_lines(lines, 0, line_count);
-    return 0;
-}
-int compare_values(const char* a, const char* op, const char* b) {
-    Variable* va = get_var(a);
-    Variable* vb = get_var(b);
-
-    int a_is_num = 0;
-    int b_is_num = 0;
-    int a_num = 0;
-    int b_num = 0;
-
-    if (va) {
-        a_is_num = (va->type == TYPE_INT);
-        if (a_is_num) a_num = to_int(va->value);
-    } else {
-        a_is_num = is_number(a);
-        if (a_is_num) a_num = to_int(a);
-    }
-
-    if (vb) {
-        b_is_num = (vb->type == TYPE_INT);
-        if (b_is_num) b_num = to_int(vb->value);
-    } else {
-        b_is_num = is_number(b);
-        if (b_is_num) b_num = to_int(b);
-    }
-
-    if (a_is_num && b_is_num) {
-        if (strcmp(op, "==") == 0) return a_num == b_num;
-        if (strcmp(op, "!=") == 0) return a_num != b_num;
-        if (strcmp(op, ">") == 0) return a_num > b_num;
-        if (strcmp(op, "<") == 0) return a_num < b_num;
-        if (strcmp(op, ">=") == 0) return a_num >= b_num;
-        if (strcmp(op, "<=") == 0) return a_num <= b_num;
-    } else {
-        // Compare strings lex
-        const char* aval = va ? va->value : a;
-        const char* bval = vb ? vb->value : b;
-        if (strcmp(op, "==") == 0) return strcmp(aval, bval) == 0;
-        if (strcmp(op, "!=") == 0) return strcmp(aval, bval) != 0;
-        if (strcmp(op, ">") == 0) return strcmp(aval, bval) > 0;
-        if (strcmp(op, "<") == 0) return strcmp(aval, bval) < 0;
-        if (strcmp(op, ">=") == 0) return strcmp(aval, bval) >= 0;
-        if (strcmp(op, "<=") == 0) return strcmp(aval, bval) <= 0;
-    }
-    return 0;
-}
-
-int find_end(char lines[][MAX_LINE], int start, int total_lines) {
-    int depth = 1;
-    for (int i = start; i < total_lines; i++) {
-        if (strncmp(lines[i], "if ", 3) == 0 || strncmp(lines[i], "loop ", 5) == 0) depth++;
-        else if (strcmp(lines[i], "end") == 0) {
-            depth--;
-            if (depth == 0) return i;
-        }
-    }
-    return -1;
-}
-
-void run_lines(char lines[][MAX_LINE], int start, int end) {
-    for (int i = start; i < end; i++) {
-        char *line = lines[i];
-        if (strlen(line) == 0 || line[0] == '#') continue;
-
-        if (strncmp(line, "set ", 4) == 0) {
-            char var[32], val[128];
-            if (sscanf(line+4, "%31s %127[^\n]", var, val) == 2) {
-                int len = strlen(val);
-                if (val[0] == '"' && val[len-1] == '"') {
-                    memmove(val, val+1, len-2);
-                    val[len-2] = 0;
-                }
-                set_var(var, val);
-            } else {
-                printf("Syntax error in set\n");
-                exit(1);
-            }
-        }
-        else if (strncmp(line, "print ", 6) == 0) {
-            char *p = line + 6;
-            char *token = strtok(p, " ");
-            while (token) {
-                Variable* v = get_var(token);
-                if (v) {
-                    if (v->type == TYPE_INT) printf("%s ", v->value);
-                    else printf("%s ", v->value);
-                } else {
-                    // In nguyên chuỗi nếu có ""
-                    int len = strlen(token);
-                    if (token[0] == '"' && token[len-1] == '"') {
-                        printf("%.*s ", len-2, token+1);
-                    } else {
-                        printf("%s ", token);
-                    }
-                }
-                token = strtok(NULL, " ");
-            }
-            printf("\n");
-        }
-        else if (strncmp(line, "input ", 6) == 0) {
-            char var[32];
-            if (sscanf(line+6, "%31s", var) == 1) {
-                printf("> ");
-                fflush(stdout);
-                char buf[128];
-                if (fgets(buf, 128, stdin)) {
-                    buf[strcspn(buf, "\n")] = 0;
-                    set_var(var, buf);
-                }
-            } else {
-                printf("Syntax error in input\n");
-                exit(1);
-            }
-        }
-        else if (strncmp(line, "if ", 3) == 0) {
-            char var[32], op[3], val[128];
-            if (sscanf(line+3, "%31s %2s %127[^\n]", var, op, val) == 3) {
-                int len = strlen(val);
-                if (val[0] == '"' && val[len-1] == '"') {
-                    memmove(val, val+1, len-2);
-                    val[len-2] = 0;
-                }
-                if (compare_values(var, op, val)) {
-                    int block_end = find_end(lines, i+1, end);
-                    if (block_end == -1) {
-                        printf("Error: missing end\n");
-                        exit(1);
-                    }
-                    run_lines(lines, i+1, block_end);
-                    i = block_end;
-                } else {
-                    int block_end = find_end(lines, i+1, end);
-                    if (block_end == -1) {
-                        printf("Error: missing end\n");
-                        exit(1);
-                    }
-                    i = block_end;
-                }
-            } else {
-                printf("Syntax error in if\n");
-                exit(1);
-            }
-        }
-        else if (strncmp(line, "loop ", 5) == 0) {
-            int count = 0;
-            if (sscanf(line+5, "%d", &count) == 1 && count > 0) {
-                int block_end = find_end(lines, i+1, end);
-                if (block_end == -1) {
-                    printf("Error: missing end\n");
-                    exit(1);
-                }
-                for (int c = 0; c < count; c++) {
-                    run_lines(lines, i+1, block_end);
-                }
-                i = block_end;
-            } else {
-                printf("Syntax error in loop\n");
-                exit(1);
-            }
-        }
-        else if (strcmp(line, "end") == 0) {
-            return;
-        }
-        else {
             printf("Unknown command: %s\n", line);
             exit(1);
         }
@@ -411,24 +382,20 @@ void run_lines(char lines[][MAX_LINE], int start, int end) {
 
 int main(int argc, char* argv[]) {
     if (argc < 2) {
-        printf("Usage: nh <file.nh>\n");
+        printf("Usage: nh <filename>\n");
         return 1;
     }
-
     FILE* f = fopen(argv[1], "r");
     if (!f) {
-        printf("Cannot open file: %s\n", argv[1]);
+        printf("Cannot open file %s\n", argv[1]);
         return 1;
     }
-
-    char lines[1000][MAX_LINE];
+    char lines[MAX_LINES][MAX_LINE];
     int line_count = 0;
-
-    while (fgets(lines[line_count], MAX_LINE, f)) {
-        // Remove trailing newline
+    while (fgets(lines[line_count], MAX_LINE, f) && line_count < MAX_LINES) {
+        // Xóa newline
         lines[line_count][strcspn(lines[line_count], "\n")] = 0;
         line_count++;
-        if (line_count >= 1000) break;
     }
     fclose(f);
 
