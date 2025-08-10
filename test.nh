@@ -3,16 +3,22 @@ set age 20
 set score 95
 set city "Hà Nội"
 
-print "Tên:" name
-print "Tuổi:" age
-print "Điểm:" score
-print "Thành phố:" city
+print "Tên:"
+print name
+print "Tuổi:"
+print age
+print "Điểm:"
+print score
+print "Thành phố:"
+print city
 
 input input_name
 input input_age
 
-print "Bạn vừa nhập tên:" input_name
-print "Bạn vừa nhập tuổi:" input_age
+print "Bạn vừa nhập tên:"
+print input_name
+print "Bạn vừa nhập tuổi:"
+print input_age
 
 if input_age > 18
     print "Bạn đã đủ tuổi trưởng thành"
@@ -31,7 +37,8 @@ loop 3
 end
 
 if age >= 18
-    print name "đủ tuổi để đi bầu cử"
+    print name
+    print "đủ tuổi để đi bầu cử"
 end
 
 print "Test NH ngôn ngữ xong rồi, cố lên nhé!"
