@@ -1,0 +1,37 @@
+set name "Huy"
+set age 20
+set score 95
+set city "Hà Nội"
+
+print "Tên:" name
+print "Tuổi:" age
+print "Điểm:" score
+print "Thành phố:" city
+
+input input_name
+input input_age
+
+print "Bạn vừa nhập tên:" input_name
+print "Bạn vừa nhập tuổi:" input_age
+
+if input_age > 18
+    print "Bạn đã đủ tuổi trưởng thành"
+end
+
+if input_age == 18
+    print "Bạn vừa đủ 18 tuổi"
+end
+
+if input_age < 18
+    print "Bạn chưa đủ tuổi trưởng thành"
+end
+
+loop 3
+    print "Lặp lại 3 lần"
+end
+
+if age >= 18
+    print name "đủ tuổi để đi bầu cử"
+end
+
+print "Test NH ngôn ngữ xong rồi, cố lên nhé!"
